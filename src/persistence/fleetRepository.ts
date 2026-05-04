@@ -12,15 +12,23 @@ export type FleetState =
   | 'Deployed'
   | 'FailedPreparation';
 
+export interface FleetTransitionHistoryEntry {
+  from: FleetState | null;
+  to: FleetState;
+  at: string;
+  reason: string;
+}
+
 /**
  * Minimal fleet entity for persistence.
  * Candidates can extend with ships, loadout, reserved resources, etc.
  */
 export interface Fleet extends VersionedEntity {
   name: string;
-  shipCount?: number;
-  fuelRequired?: number;
+  shipCount: number;
+  fuelRequired: number;
   state: FleetState;
+  history: FleetTransitionHistoryEntry[];
 }
 
 export type FleetRepository = Repository<Fleet>;

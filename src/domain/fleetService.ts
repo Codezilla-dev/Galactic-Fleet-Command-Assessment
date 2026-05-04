@@ -25,11 +25,16 @@ const ALLOWED_TRANSITIONS: Record<FleetState, FleetState[]> = {
   FailedPreparation: [],
 };
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 export class FleetService {
   constructor(private readonly fleets: FleetRepository) {}
 
   createFleet(input: CreateFleetInput): Fleet {
     this.validateFleetInput(input.name, input.shipCount, input.fuelRequired);
+    const createdAt = nowIso();
     const fleet: Fleet = {
       id: input.id ?? randomUUID(),
       version: 1,
@@ -37,6 +42,14 @@ export class FleetService {
       shipCount: input.shipCount,
       fuelRequired: input.fuelRequired,
       state: 'Docked',
+      history: [
+        {
+          from: null,
+          to: 'Docked',
+          at: createdAt,
+          reason: 'fleet-created',
+        },
+      ],
     };
     this.fleets.create(fleet);
     return fleet;
@@ -67,7 +80,29 @@ export class FleetService {
     return this.fleets.getOrThrow(id);
   }
 
-  transition(id: string, targetState: FleetState): Fleet {
+  async prepareFleet(
+    id: string,
+    reserveResources: (fleet: Fleet) => Promise<void>,
+  ): Promise<Fleet> {
+    const preparing = this.transition(id, 'Preparing', 'preparation-started');
+
+    try {
+      await reserveResources(preparing);
+      return this.transition(id, 'Ready', 'resources-reserved');
+    } catch (error) {
+      const current = this.fleets.get(id);
+      if (current?.state === 'Preparing') {
+        this.transition(id, 'FailedPreparation', 'resource-reservation-failed');
+      }
+      throw error;
+    }
+  }
+
+  deployFleet(id: string): Fleet {
+    return this.transition(id, 'Deployed', 'fleet-deployed');
+  }
+
+  private transition(id: string, targetState: FleetState, reason: string): Fleet {
     const current = this.fleets.getOrThrow(id);
     const allowed = ALLOWED_TRANSITIONS[current.state];
     if (!allowed.includes(targetState)) {
@@ -79,6 +114,15 @@ export class FleetService {
     this.fleets.update(id, current.version, (fleet) => ({
       ...fleet,
       state: targetState,
+      history: [
+        ...fleet.history,
+        {
+          from: current.state,
+          to: targetState,
+          at: nowIso(),
+          reason,
+        },
+      ],
     }));
     return this.fleets.getOrThrow(id);
   }

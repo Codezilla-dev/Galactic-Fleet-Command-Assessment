@@ -12,6 +12,7 @@ export {
   type Fleet,
   type FleetRepository,
   type FleetState,
+  type FleetTransitionHistoryEntry,
 } from './fleetRepository';
 
 export {

@@ -7,9 +7,12 @@ import type {
   Command,
   CommandRepository,
   CommandStatus,
+  CommandType,
+  DeployFleetCommandPayload,
   PrepareFleetCommandPayload,
 } from '../persistence';
 
+import { DeployFleetCommandHandler } from './deployFleetCommandHandler';
 import { PrepareFleetCommandHandler } from './prepareFleetCommandHandler';
 
 function nowIso(): string {
@@ -29,15 +32,27 @@ export class InMemoryCommandQueue {
   constructor(
     private readonly commands: CommandRepository,
     private readonly prepareFleetCommandHandler: PrepareFleetCommandHandler,
+    private readonly deployFleetCommandHandler: DeployFleetCommandHandler,
     private readonly cache?: CacheClient,
     private readonly webhookNotifier?: WebhookNotifier,
   ) {}
 
   submitPrepareFleetCommand(payload: PrepareFleetCommandPayload): Command {
+    return this.submitCommand('PrepareFleetCommand', payload);
+  }
+
+  submitDeployFleetCommand(payload: DeployFleetCommandPayload): Command {
+    return this.submitCommand('DeployFleetCommand', payload);
+  }
+
+  private submitCommand(
+    type: CommandType,
+    payload: PrepareFleetCommandPayload | DeployFleetCommandPayload,
+  ): Command {
     const command: Command = {
       id: randomUUID(),
       version: 1,
-      type: 'PrepareFleetCommand',
+      type,
       status: 'Queued',
       payload: { ...payload },
       createdAt: nowIso(),
@@ -91,12 +106,12 @@ export class InMemoryCommandQueue {
     const command = this.commands.getOrThrow(commandId);
 
     try {
+      const fleetId = this.getFleetId(command);
       if (command.type === 'PrepareFleetCommand') {
-        const fleetId = command.payload.fleetId;
-        if (typeof fleetId !== 'string') {
-          throw new Error('PrepareFleetCommand requires payload.fleetId');
-        }
         await this.prepareFleetCommandHandler.execute(fleetId);
+        this.cache?.delete(fleetCacheKey(fleetId));
+      } else if (command.type === 'DeployFleetCommand') {
+        await this.deployFleetCommandHandler.execute(fleetId);
         this.cache?.delete(fleetCacheKey(fleetId));
       }
       const completed = this.updateCommandStatus(commandId, 'Succeeded');
@@ -136,5 +151,13 @@ export class InMemoryCommandQueue {
     } catch {
       // Webhooks are a best-effort integration stub and should not change command state.
     }
+  }
+
+  private getFleetId(command: Command): string {
+    const fleetId = command.payload.fleetId;
+    if (typeof fleetId !== 'string') {
+      throw new Error(`${command.type} requires payload.fleetId`);
+    }
+    return fleetId;
   }
 }

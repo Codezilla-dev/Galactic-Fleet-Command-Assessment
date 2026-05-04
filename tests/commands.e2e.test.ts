@@ -18,8 +18,8 @@ async function waitForCommand(
   throw new Error(`Command did not finish in time: ${commandId}`);
 }
 
-describe('Prepare fleet command end-to-end', () => {
-  it('creates fleet, queues prepare command, and transitions to Ready', async () => {
+describe('Fleet commands end-to-end', () => {
+  it('creates fleet, queues prepare and deploy commands, and transitions to Deployed', async () => {
     const app = createApp({ initialFuelTotal: 500 });
 
     const fleetResponse = await request(app).post('/fleets').send({
@@ -40,8 +40,51 @@ describe('Prepare fleet command end-to-end', () => {
     const result = await waitForCommand(app, commandResponse.body.id as string);
     expect(result.status).toBe('Succeeded');
 
+    const fleetAfterPrepare = await request(app).get(`/fleets/${fleetId}`);
+    expect(fleetAfterPrepare.status).toBe(200);
+    expect(fleetAfterPrepare.body.state).toBe('Ready');
+
+    const deployResponse = await request(app).post('/commands').send({
+      type: 'DeployFleetCommand',
+      payload: { fleetId },
+    });
+    expect(deployResponse.status).toBe(202);
+
+    const deployResult = await waitForCommand(app, deployResponse.body.id as string);
+    expect(deployResult.status).toBe('Succeeded');
+
+    const fleetAfterDeploy = await request(app).get(`/fleets/${fleetId}`);
+    expect(fleetAfterDeploy.status).toBe(200);
+    expect(fleetAfterDeploy.body.state).toBe('Deployed');
+    expect(fleetAfterDeploy.body.history.map((entry: { to: string }) => entry.to)).toEqual([
+      'Docked',
+      'Preparing',
+      'Ready',
+      'Deployed',
+    ]);
+  });
+
+  it('fails DeployFleetCommand when the fleet is not Ready', async () => {
+    const app = createApp({ initialFuelTotal: 500 });
+
+    const fleetResponse = await request(app).post('/fleets').send({
+      name: 'Docked Fleet',
+      shipCount: 4,
+      fuelRequired: 80,
+    });
+
+    const fleetId = fleetResponse.body.id as string;
+    const commandResponse = await request(app).post('/commands').send({
+      type: 'DeployFleetCommand',
+      payload: { fleetId },
+    });
+    expect(commandResponse.status).toBe(202);
+
+    const result = await waitForCommand(app, commandResponse.body.id as string);
+    expect(result.status).toBe('Failed');
+    expect(result.errorMessage).toBe('Invalid fleet transition: Docked -> Deployed');
+
     const fleetAfter = await request(app).get(`/fleets/${fleetId}`);
-    expect(fleetAfter.status).toBe(200);
-    expect(fleetAfter.body.state).toBe('Ready');
+    expect(fleetAfter.body.state).toBe('Docked');
   });
 });

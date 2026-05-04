@@ -5,9 +5,13 @@ import type { VersionedEntity } from './types';
  * Command lifecycle (see assignment).
  */
 export type CommandStatus = 'Queued' | 'Processing' | 'Succeeded' | 'Failed';
-export type CommandType = string;
+export type CommandType = 'PrepareFleetCommand' | 'DeployFleetCommand';
 
 export interface PrepareFleetCommandPayload {
+  fleetId: string;
+}
+
+export interface DeployFleetCommandPayload {
   fleetId: string;
 }
 

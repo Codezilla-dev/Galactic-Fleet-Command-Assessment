@@ -40,12 +40,12 @@ describe('createPersistenceContext', () => {
     ctx.commands.create({
       id: 'c1',
       version: 1,
-      type: 'PrepareFleet',
+      type: 'PrepareFleetCommand',
       status: 'Queued',
       payload: { fleetId: 'f1' },
     });
     expect(ctx.fleets.getOrThrow('f1').name).toBe('Alpha');
-    expect(ctx.commands.getOrThrow('c1').type).toBe('PrepareFleet');
+    expect(ctx.commands.getOrThrow('c1').type).toBe('PrepareFleetCommand');
   });
 });
 
@@ -70,11 +70,11 @@ describe('in-memory repository factories', () => {
     repo.create({
       id: 'c1',
       version: 1,
-      type: 'DeployFleet',
+      type: 'DeployFleetCommand',
       status: 'Queued',
       payload: {},
     });
-    expect(repo.getOrThrow('c1').type).toBe('DeployFleet');
+    expect(repo.getOrThrow('c1').type).toBe('DeployFleetCommand');
   });
 
   it('createInMemoryResourcePoolRepository supports create, get, getByType', () => {

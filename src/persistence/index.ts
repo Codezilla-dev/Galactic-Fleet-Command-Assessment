@@ -21,6 +21,7 @@ export {
   type CommandRepository,
   type CommandStatus,
   type CommandType,
+  type DeployFleetCommandPayload,
   type PrepareFleetCommandPayload,
 } from './commandRepository';
 

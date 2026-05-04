@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { InMemoryCacheClient, type CacheClient } from './cache/cacheClient';
 import { commandCacheKey, fleetCacheKey } from './cache/cacheKeys';
 import { InMemoryCommandQueue } from './commands/commandQueue';
+import { DeployFleetCommandHandler } from './commands/deployFleetCommandHandler';
 import { PrepareFleetCommandHandler } from './commands/prepareFleetCommandHandler';
 import { FleetService } from './domain/fleetService';
 import { ResourceReservationService } from './domain/resourceReservationService';
@@ -32,12 +33,17 @@ export function createApp(options: CreateAppOptions = {}) {
   const fleetService = new FleetService(context.fleets);
   const reservationService = new ResourceReservationService(context.resourcePools);
   reservationService.seedFuelPool(options.initialFuelTotal ?? 1000);
-  const commandHandler = new PrepareFleetCommandHandler(fleetService, reservationService);
+  const prepareFleetCommandHandler = new PrepareFleetCommandHandler(
+    fleetService,
+    reservationService,
+  );
+  const deployFleetCommandHandler = new DeployFleetCommandHandler(fleetService);
   const cache = options.cache ?? new InMemoryCacheClient();
   const webhookNotifier = options.webhookNotifier ?? new NoopWebhookNotifier();
   const commandQueue = new InMemoryCommandQueue(
     context.commands,
-    commandHandler,
+    prepareFleetCommandHandler,
+    deployFleetCommandHandler,
     cache,
     webhookNotifier,
   );
@@ -105,7 +111,9 @@ export function createApp(options: CreateAppOptions = {}) {
   app.post('/commands', (req: Request, res: Response) => {
     try {
       const command = parseCommandPayload(req.body);
-      const created = commandQueue.submitPrepareFleetCommand(command.payload);
+      const created = command.type === 'PrepareFleetCommand'
+        ? commandQueue.submitPrepareFleetCommand(command.payload)
+        : commandQueue.submitDeployFleetCommand(command.payload);
       res.status(202).json(created);
     } catch (error) {
       sendError(error, res);

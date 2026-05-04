@@ -1,7 +1,8 @@
 import { ValidationError } from '../../domain/errors';
+import type { CommandType } from '../../persistence';
 
 export function parseCommandPayload(body: unknown): {
-  type: 'PrepareFleetCommand';
+  type: CommandType;
   payload: { fleetId: string };
 } {
   if (typeof body !== 'object' || body === null) {
@@ -9,8 +10,8 @@ export function parseCommandPayload(body: unknown): {
   }
 
   const candidate = body as Record<string, unknown>;
-  if (candidate.type !== 'PrepareFleetCommand') {
-    throw new ValidationError('Only PrepareFleetCommand is supported');
+  if (candidate.type !== 'PrepareFleetCommand' && candidate.type !== 'DeployFleetCommand') {
+    throw new ValidationError('Only PrepareFleetCommand and DeployFleetCommand are supported');
   }
 
   if (typeof candidate.payload !== 'object' || candidate.payload === null) {
@@ -23,7 +24,7 @@ export function parseCommandPayload(body: unknown): {
   }
 
   return {
-    type: 'PrepareFleetCommand',
+    type: candidate.type,
     payload: { fleetId: payload.fleetId },
   };
 }

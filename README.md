@@ -148,3 +148,59 @@ Please include your source code and a short README describing:
 - Tradeoffs
 - What you would improve with more time
 
+## Implemented Solution
+
+### Design Decisions
+
+- Built on the provided Express + TypeScript scaffold and existing in-memory repositories.
+- Added a `FleetService` domain layer to centralize fleet lifecycle validation and state transitions.
+- Implemented asynchronous command execution through an in-memory queue with a single background worker.
+- Modeled commands explicitly as `PrepareFleetCommand` with status lifecycle (`Queued`, `Processing`, `Succeeded`, `Failed`), timestamps, and failure message.
+- Added a `ResourceReservationService` that uses optimistic locking (`version`) and bounded retries to prevent over-allocation under concurrent reservation attempts.
+- Kept one shared `PersistenceContext` per app instance so API requests and background worker operate on consistent in-memory state.
+
+### API Surface
+
+- `POST /fleets` creates a fleet in `Docked` state.
+- `GET /fleets/:id` returns a fleet.
+- `PATCH /fleets/:id` updates mutable fleet properties (`name`, `shipCount`, `fuelRequired`).
+- `POST /commands` enqueues `PrepareFleetCommand`.
+- `GET /commands/:id` returns command execution status.
+- `GET /health` returns service health.
+
+### Concurrency Strategy
+
+- Resource reservation is concurrency-safe via optimistic locking in `ResourcePoolRepository.update`.
+- Reservation attempts re-read and retry on `ConcurrencyError` only.
+- If fuel is insufficient, preparation fails and fleet transitions to `FailedPreparation`.
+- Guarantees that `reserved` fuel never exceeds `total`.
+
+### Tests Included
+
+- Lifecycle tests for valid and invalid state transitions.
+- Concurrency test validating no fuel over-allocation with concurrent reservations.
+- End-to-end API test covering create fleet -> enqueue command -> async processing -> fleet moves to `Ready`.
+- Existing health and persistence tests updated to reflect expanded fleet/command models.
+
+### How To Run
+
+- Install: `npm install`
+- Start (dev): `npm run dev`
+- Build: `npm run build`
+- Test: `npm test`
+- Lint: `npm run lint`
+
+### Tradeoffs
+
+- Uses in-memory queue and storage for simplicity and assignment scope; data is lost on restart.
+- Single worker avoids distributed coordination complexity and keeps command execution deterministic.
+- Focused only on required `PrepareFleetCommand`; no retries, scheduling, or dead-letter handling.
+- Validation is intentionally lightweight and handled in app/domain layers rather than through an external schema library.
+
+### Improvements With More Time
+
+- Add `DeployFleetCommand` and command history/audit timeline.
+- Add idempotency keys and stronger request validation schemas.
+- Add observability: structured logs, queue metrics, command latency, failure counters.
+- Add webhook/event notifications on command completion.
+- Add graceful worker shutdown and explicit queue draining hooks for production deployment.

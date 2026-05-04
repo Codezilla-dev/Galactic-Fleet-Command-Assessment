@@ -153,11 +153,24 @@ Please include your source code and a short README describing:
 ### Design Decisions
 
 - Built on the provided Express + TypeScript scaffold and existing in-memory repositories.
+- Added an Express middleware gateway boundary with request IDs plus auth, logging, and rate-limit stubs.
 - Added a `FleetService` domain layer to centralize fleet lifecycle validation and state transitions.
 - Implemented asynchronous command execution through an in-memory queue with a single background worker.
 - Modeled commands explicitly as `PrepareFleetCommand` with status lifecycle (`Queued`, `Processing`, `Succeeded`, `Failed`), timestamps, and failure message.
+- Added an in-memory cache abstraction as the local stand-in for Redis.
+- Added a webhook notifier interface with a no-op default implementation.
 - Added a `ResourceReservationService` that uses optimistic locking (`version`) and bounded retries to prevent over-allocation under concurrent reservation attempts.
 - Kept one shared `PersistenceContext` per app instance so API requests and background worker operate on consistent in-memory state.
+
+### Architecture Mapping
+
+- Load balancer: out of process for this assignment; represented by the single Express app entry point.
+- API gateway: implemented as Express middleware for request IDs, logging hooks, optional auth, and optional rate-limit stubs.
+- Command queue: implemented as an in-memory queue with one background worker.
+- Redis cache: represented by `InMemoryCacheClient`, with cache invalidation on fleet mutations and command status changes.
+- Primary DB: represented by in-memory repository interfaces and maps.
+- Webhook endpoint/client: represented by `WebhookNotifier`; the default `NoopWebhookNotifier` makes no network calls.
+- Operational visibility: `GET /system/status` reports queue stats and active architecture modes.
 
 ### API Surface
 
@@ -166,6 +179,7 @@ Please include your source code and a short README describing:
 - `PATCH /fleets/:id` updates mutable fleet properties (`name`, `shipCount`, `fuelRequired`).
 - `POST /commands` enqueues `PrepareFleetCommand`.
 - `GET /commands/:id` returns command execution status.
+- `GET /system/status` returns architecture mode and queue status.
 - `GET /health` returns service health.
 
 ### Concurrency Strategy
@@ -180,7 +194,8 @@ Please include your source code and a short README describing:
 - Lifecycle tests for valid and invalid state transitions.
 - Concurrency test validating no fuel over-allocation with concurrent reservations.
 - End-to-end API test covering create fleet -> enqueue command -> async processing -> fleet moves to `Ready`.
-- Existing health and persistence tests updated to reflect expanded fleet/command models.
+- Gateway, cache, webhook, and system status tests for the architecture stubs.
+- Existing health and persistence tests remain compatible with the repository layer.
 
 ### How To Run
 
@@ -196,11 +211,12 @@ Please include your source code and a short README describing:
 - Single worker avoids distributed coordination complexity and keeps command execution deterministic.
 - Focused only on required `PrepareFleetCommand`; no retries, scheduling, or dead-letter handling.
 - Validation is intentionally lightweight and handled in app/domain layers rather than through an external schema library.
+- Gateway, Redis, database, and webhook integrations are replaceable stubs rather than external services.
 
 ### Improvements With More Time
 
 - Add `DeployFleetCommand` and command history/audit timeline.
 - Add idempotency keys and stronger request validation schemas.
+- Replace stubs with real auth, rate limiting, Redis, persistent storage, and outbound webhook delivery.
 - Add observability: structured logs, queue metrics, command latency, failure counters.
-- Add webhook/event notifications on command completion.
 - Add graceful worker shutdown and explicit queue draining hooks for production deployment.

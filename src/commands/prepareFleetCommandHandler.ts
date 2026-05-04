@@ -13,6 +13,9 @@ export class PrepareFleetCommandHandler {
 
     try {
       const fleet = this.fleetService.getFleetOrThrow(fleetId);
+      if (fleet.fuelRequired === undefined) {
+        throw new InsufficientResourcesError('Fleet fuel requirement is not configured');
+      }
       await this.resourceReservationService.reserveFuel(fleet.fuelRequired);
       this.fleetService.transition(fleetId, 'Ready');
     } catch (error) {

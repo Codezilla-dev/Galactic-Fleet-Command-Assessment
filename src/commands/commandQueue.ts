@@ -28,7 +28,7 @@ export class InMemoryCommandQueue {
       version: 1,
       type: 'PrepareFleetCommand',
       status: 'Queued',
-      payload,
+      payload: { ...payload },
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -73,7 +73,11 @@ export class InMemoryCommandQueue {
 
     try {
       if (command.type === 'PrepareFleetCommand') {
-        await this.prepareFleetCommandHandler.execute(command.payload.fleetId);
+        const fleetId = command.payload.fleetId;
+        if (typeof fleetId !== 'string') {
+          throw new Error('PrepareFleetCommand requires payload.fleetId');
+        }
+        await this.prepareFleetCommandHandler.execute(fleetId);
       }
       this.updateCommandStatus(commandId, 'Succeeded');
     } catch (error) {

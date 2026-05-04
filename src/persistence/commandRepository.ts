@@ -1,21 +1,27 @@
-import { VersionedEntity } from './types';
-
-import { InMemoryRepository } from './InMemoryRepository';
-import type { Repository } from './InMemoryRepository';
+import { InMemoryRepository, type Repository } from './InMemoryRepository';
+import type { VersionedEntity } from './types';
 
 /**
  * Command lifecycle (see assignment).
  */
 export type CommandStatus = 'Queued' | 'Processing' | 'Succeeded' | 'Failed';
+export type CommandType = string;
+
+export interface PrepareFleetCommandPayload {
+  fleetId: string;
+}
 
 /**
  * Minimal command entity for persistence.
  * Candidates can extend with attemptCount, timestamps, error, idempotency key, etc.
  */
 export interface Command extends VersionedEntity {
-  type: string;
+  type: CommandType;
   status: CommandStatus;
   payload: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+  errorMessage?: string;
 }
 
 export type CommandRepository = Repository<Command>;

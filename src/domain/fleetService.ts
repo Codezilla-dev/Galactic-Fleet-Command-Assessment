@@ -83,14 +83,18 @@ export class FleetService {
     return this.fleets.getOrThrow(id);
   }
 
-  private validateFleetInput(name: string, shipCount: number, fuelRequired: number): void {
+  private validateFleetInput(name: string, shipCount: unknown, fuelRequired: unknown): void {
     if (name.trim().length === 0) {
       throw new ValidationError('Fleet name is required');
     }
-    if (!Number.isInteger(shipCount) || shipCount <= 0) {
+    if (typeof shipCount !== 'number' || !Number.isInteger(shipCount) || shipCount <= 0) {
       throw new ValidationError('shipCount must be a positive integer');
     }
-    if (!Number.isFinite(fuelRequired) || fuelRequired <= 0) {
+    if (
+      typeof fuelRequired !== 'number' ||
+      !Number.isFinite(fuelRequired) ||
+      fuelRequired <= 0
+    ) {
       throw new ValidationError('fuelRequired must be a positive number');
     }
   }

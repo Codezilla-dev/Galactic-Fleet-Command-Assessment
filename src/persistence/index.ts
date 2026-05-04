@@ -19,6 +19,8 @@ export {
   type Command,
   type CommandRepository,
   type CommandStatus,
+  type CommandType,
+  type PrepareFleetCommandPayload,
 } from './commandRepository';
 
 export {

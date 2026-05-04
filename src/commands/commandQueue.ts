@@ -23,11 +23,34 @@ export interface QueueStats {
   pendingCount: number;
   processing: boolean;
   workerCount: number;
+  metrics: CommandQueueMetrics;
+}
+
+export interface CommandQueueMetrics {
+  submitted: number;
+  succeeded: number;
+  failed: number;
+  byType: Record<CommandType, { submitted: number; succeeded: number; failed: number }>;
+  lastFailure?: {
+    commandId: string;
+    type: CommandType;
+    message: string;
+    at: string;
+  };
 }
 
 export class InMemoryCommandQueue {
   private readonly queue: string[] = [];
   private processing = false;
+  private readonly metrics: CommandQueueMetrics = {
+    submitted: 0,
+    succeeded: 0,
+    failed: 0,
+    byType: {
+      PrepareFleetCommand: { submitted: 0, succeeded: 0, failed: 0 },
+      DeployFleetCommand: { submitted: 0, succeeded: 0, failed: 0 },
+    },
+  };
 
   constructor(
     private readonly commands: CommandRepository,
@@ -59,6 +82,7 @@ export class InMemoryCommandQueue {
       updatedAt: nowIso(),
     };
     this.commands.create(command);
+    this.recordSubmitted(type);
     this.queue.push(command.id);
     this.kickWorker();
     return this.commands.getOrThrow(command.id);
@@ -73,6 +97,17 @@ export class InMemoryCommandQueue {
       pendingCount: this.queue.length,
       processing: this.processing,
       workerCount: 1,
+      metrics: {
+        ...this.metrics,
+        byType: {
+          PrepareFleetCommand: { ...this.metrics.byType.PrepareFleetCommand },
+          DeployFleetCommand: { ...this.metrics.byType.DeployFleetCommand },
+        },
+        lastFailure:
+          this.metrics.lastFailure === undefined
+            ? undefined
+            : { ...this.metrics.lastFailure },
+      },
     };
   }
 
@@ -115,6 +150,7 @@ export class InMemoryCommandQueue {
         this.cache?.delete(fleetCacheKey(fleetId));
       }
       const completed = this.updateCommandStatus(commandId, 'Succeeded');
+      this.recordSucceeded(completed.type);
       await this.notifyCompletion(completed);
     } catch (error) {
       const current = this.commands.getOrThrow(commandId);
@@ -130,7 +166,9 @@ export class InMemoryCommandQueue {
         updatedAt: nowIso(),
       }));
       this.cache?.delete(commandCacheKey(commandId));
-      await this.notifyCompletion(this.commands.getOrThrow(commandId));
+      const failed = this.commands.getOrThrow(commandId);
+      this.recordFailed(failed, message);
+      await this.notifyCompletion(failed);
     }
   }
 
@@ -159,5 +197,26 @@ export class InMemoryCommandQueue {
       throw new Error(`${command.type} requires payload.fleetId`);
     }
     return fleetId;
+  }
+
+  private recordSubmitted(type: CommandType): void {
+    this.metrics.submitted += 1;
+    this.metrics.byType[type].submitted += 1;
+  }
+
+  private recordSucceeded(type: CommandType): void {
+    this.metrics.succeeded += 1;
+    this.metrics.byType[type].succeeded += 1;
+  }
+
+  private recordFailed(command: Command, message: string): void {
+    this.metrics.failed += 1;
+    this.metrics.byType[command.type].failed += 1;
+    this.metrics.lastFailure = {
+      commandId: command.id,
+      type: command.type,
+      message,
+      at: nowIso(),
+    };
   }
 }

@@ -25,6 +25,17 @@ export function createGatewayMiddleware(options: GatewayOptions = {}) {
       : randomUUID();
 
     res.setHeader('x-request-id', requestId);
+    const startedAt = Date.now();
+
+    res.on('finish', () => {
+      options.logger?.('request.completed', {
+        durationMs: Date.now() - startedAt,
+        method: req.method,
+        path: req.path,
+        requestId,
+        statusCode: res.statusCode,
+      });
+    });
 
     if (options.authToken !== undefined) {
       const expected = `Bearer ${options.authToken}`;

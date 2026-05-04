@@ -18,6 +18,7 @@ import {
 } from './notifications/webhookNotifier';
 import { createPersistenceContext, type PersistenceContext } from './persistence/context';
 import { STORAGE_MODE } from './persistence/storageMode';
+import { NotFoundError } from './persistence/types';
 
 interface CreateAppOptions {
   cache?: CacheClient;
@@ -121,20 +122,23 @@ export function createApp(options: CreateAppOptions = {}) {
   });
 
   app.get('/commands/:id', (req: Request, res: Response) => {
-    const command = commandQueue.getCommand(req.params.id);
-    const cached = cache.get<NonNullable<ReturnType<typeof commandQueue.getCommand>>>(
-      commandCacheKey(req.params.id),
-    );
-    if (cached !== undefined) {
-      res.status(200).json(cached);
-      return;
+    try {
+      const command = commandQueue.getCommand(req.params.id);
+      const cached = cache.get<NonNullable<ReturnType<typeof commandQueue.getCommand>>>(
+        commandCacheKey(req.params.id),
+      );
+      if (cached !== undefined) {
+        res.status(200).json(cached);
+        return;
+      }
+      if (command === undefined) {
+        throw new NotFoundError(req.params.id, 'Command');
+      }
+      cache.set(commandCacheKey(req.params.id), command);
+      res.status(200).json(command);
+    } catch (error) {
+      sendError(error, res);
     }
-    if (command === undefined) {
-      res.status(404).json({ error: `Command not found: ${req.params.id}` });
-      return;
-    }
-    cache.set(commandCacheKey(req.params.id), command);
-    res.status(200).json(command);
   });
 
   return app;

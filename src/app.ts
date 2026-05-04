@@ -6,11 +6,13 @@ import { PrepareFleetCommandHandler } from './commands/prepareFleetCommandHandle
 import { InsufficientResourcesError, ValidationError } from './domain/errors';
 import { FleetService } from './domain/fleetService';
 import { ResourceReservationService } from './domain/resourceReservationService';
+import { createGatewayMiddleware, type GatewayOptions } from './http/gateway';
 import { createPersistenceContext, type PersistenceContext } from './persistence/context';
 import { ConcurrencyError, DuplicateIdError, NotFoundError } from './persistence/types';
 
 interface CreateAppOptions {
   context?: PersistenceContext;
+  gateway?: GatewayOptions;
   initialFuelTotal?: number;
 }
 
@@ -140,6 +142,7 @@ export function createApp(options: CreateAppOptions = {}) {
   const commandHandler = new PrepareFleetCommandHandler(fleetService, reservationService);
   const commandQueue = new InMemoryCommandQueue(context.commands, commandHandler);
 
+  app.use(createGatewayMiddleware(options.gateway));
   app.use(express.json());
 
   app.get('/health', (_req, res) => {

@@ -11,6 +11,10 @@ import { sendError } from './http/errors';
 import { createGatewayMiddleware, type GatewayOptions } from './http/gateway';
 import { parseCommandPayload } from './http/validators/commandValidators';
 import { parseFleetPatch, parseFleetPayload } from './http/validators/fleetValidators';
+import {
+  NoopWebhookNotifier,
+  type WebhookNotifier,
+} from './notifications/webhookNotifier';
 import { createPersistenceContext, type PersistenceContext } from './persistence/context';
 
 interface CreateAppOptions {
@@ -18,6 +22,7 @@ interface CreateAppOptions {
   context?: PersistenceContext;
   gateway?: GatewayOptions;
   initialFuelTotal?: number;
+  webhookNotifier?: WebhookNotifier;
 }
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -28,7 +33,13 @@ export function createApp(options: CreateAppOptions = {}) {
   reservationService.seedFuelPool(options.initialFuelTotal ?? 1000);
   const commandHandler = new PrepareFleetCommandHandler(fleetService, reservationService);
   const cache = options.cache ?? new InMemoryCacheClient();
-  const commandQueue = new InMemoryCommandQueue(context.commands, commandHandler, cache);
+  const webhookNotifier = options.webhookNotifier ?? new NoopWebhookNotifier();
+  const commandQueue = new InMemoryCommandQueue(
+    context.commands,
+    commandHandler,
+    cache,
+    webhookNotifier,
+  );
 
   app.use(createGatewayMiddleware(options.gateway));
   app.use(express.json());

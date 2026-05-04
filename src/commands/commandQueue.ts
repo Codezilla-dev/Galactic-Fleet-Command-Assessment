@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { CacheClient } from '../cache/cacheClient';
 import { commandCacheKey, fleetCacheKey } from '../cache/cacheKeys';
+import type { WebhookNotifier } from '../notifications/webhookNotifier';
 import type {
   Command,
   CommandRepository,
@@ -23,6 +24,7 @@ export class InMemoryCommandQueue {
     private readonly commands: CommandRepository,
     private readonly prepareFleetCommandHandler: PrepareFleetCommandHandler,
     private readonly cache?: CacheClient,
+    private readonly webhookNotifier?: WebhookNotifier,
   ) {}
 
   submitPrepareFleetCommand(payload: PrepareFleetCommandPayload): Command {
@@ -83,7 +85,8 @@ export class InMemoryCommandQueue {
         await this.prepareFleetCommandHandler.execute(fleetId);
         this.cache?.delete(fleetCacheKey(fleetId));
       }
-      this.updateCommandStatus(commandId, 'Succeeded');
+      const completed = this.updateCommandStatus(commandId, 'Succeeded');
+      await this.notifyCompletion(completed);
     } catch (error) {
       const current = this.commands.getOrThrow(commandId);
       const message = error instanceof Error ? error.message : 'Unknown command failure';
@@ -98,10 +101,11 @@ export class InMemoryCommandQueue {
         updatedAt: nowIso(),
       }));
       this.cache?.delete(commandCacheKey(commandId));
+      await this.notifyCompletion(this.commands.getOrThrow(commandId));
     }
   }
 
-  private updateCommandStatus(commandId: string, status: CommandStatus): void {
+  private updateCommandStatus(commandId: string, status: CommandStatus): Command {
     const current = this.commands.getOrThrow(commandId);
     this.commands.update(commandId, current.version, (command) => ({
       ...command,
@@ -109,5 +113,14 @@ export class InMemoryCommandQueue {
       updatedAt: nowIso(),
     }));
     this.cache?.delete(commandCacheKey(commandId));
+    return this.commands.getOrThrow(commandId);
+  }
+
+  private async notifyCompletion(command: Command): Promise<void> {
+    try {
+      await this.webhookNotifier?.notifyCommandCompleted(command);
+    } catch {
+      // Webhooks are a best-effort integration stub and should not change command state.
+    }
   }
 }

@@ -1,6 +1,8 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 
+import { InMemoryCacheClient, type CacheClient } from './cache/cacheClient';
+import { commandCacheKey, fleetCacheKey } from './cache/cacheKeys';
 import { InMemoryCommandQueue } from './commands/commandQueue';
 import { PrepareFleetCommandHandler } from './commands/prepareFleetCommandHandler';
 import { FleetService } from './domain/fleetService';
@@ -12,6 +14,7 @@ import { parseFleetPatch, parseFleetPayload } from './http/validators/fleetValid
 import { createPersistenceContext, type PersistenceContext } from './persistence/context';
 
 interface CreateAppOptions {
+  cache?: CacheClient;
   context?: PersistenceContext;
   gateway?: GatewayOptions;
   initialFuelTotal?: number;
@@ -24,7 +27,8 @@ export function createApp(options: CreateAppOptions = {}) {
   const reservationService = new ResourceReservationService(context.resourcePools);
   reservationService.seedFuelPool(options.initialFuelTotal ?? 1000);
   const commandHandler = new PrepareFleetCommandHandler(fleetService, reservationService);
-  const commandQueue = new InMemoryCommandQueue(context.commands, commandHandler);
+  const cache = options.cache ?? new InMemoryCacheClient();
+  const commandQueue = new InMemoryCommandQueue(context.commands, commandHandler, cache);
 
   app.use(createGatewayMiddleware(options.gateway));
   app.use(express.json());
@@ -37,6 +41,7 @@ export function createApp(options: CreateAppOptions = {}) {
     try {
       const payload = parseFleetPayload(req.body);
       const fleet = fleetService.createFleet(payload);
+      cache.delete(fleetCacheKey(fleet.id));
       res.status(201).json(fleet);
     } catch (error) {
       sendError(error, res);
@@ -45,7 +50,15 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.get('/fleets/:id', (req: Request, res: Response) => {
     try {
+      const cached = cache.get<ReturnType<FleetService['getFleetOrThrow']>>(
+        fleetCacheKey(req.params.id),
+      );
+      if (cached !== undefined) {
+        res.status(200).json(cached);
+        return;
+      }
       const fleet = fleetService.getFleetOrThrow(req.params.id);
+      cache.set(fleetCacheKey(req.params.id), fleet);
       res.status(200).json(fleet);
     } catch (error) {
       sendError(error, res);
@@ -56,6 +69,7 @@ export function createApp(options: CreateAppOptions = {}) {
     try {
       const patch = parseFleetPatch(req.body);
       const fleet = fleetService.updateFleet(req.params.id, patch);
+      cache.delete(fleetCacheKey(req.params.id));
       res.status(200).json(fleet);
     } catch (error) {
       sendError(error, res);
@@ -74,10 +88,18 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.get('/commands/:id', (req: Request, res: Response) => {
     const command = commandQueue.getCommand(req.params.id);
+    const cached = cache.get<NonNullable<ReturnType<typeof commandQueue.getCommand>>>(
+      commandCacheKey(req.params.id),
+    );
+    if (cached !== undefined) {
+      res.status(200).json(cached);
+      return;
+    }
     if (command === undefined) {
       res.status(404).json({ error: `Command not found: ${req.params.id}` });
       return;
     }
+    cache.set(commandCacheKey(req.params.id), command);
     res.status(200).json(command);
   });
 

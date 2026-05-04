@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { CacheClient } from '../cache/cacheClient';
+import { commandCacheKey, fleetCacheKey } from '../cache/cacheKeys';
 import type {
   Command,
   CommandRepository,
@@ -20,6 +22,7 @@ export class InMemoryCommandQueue {
   constructor(
     private readonly commands: CommandRepository,
     private readonly prepareFleetCommandHandler: PrepareFleetCommandHandler,
+    private readonly cache?: CacheClient,
   ) {}
 
   submitPrepareFleetCommand(payload: PrepareFleetCommandPayload): Command {
@@ -78,17 +81,23 @@ export class InMemoryCommandQueue {
           throw new Error('PrepareFleetCommand requires payload.fleetId');
         }
         await this.prepareFleetCommandHandler.execute(fleetId);
+        this.cache?.delete(fleetCacheKey(fleetId));
       }
       this.updateCommandStatus(commandId, 'Succeeded');
     } catch (error) {
       const current = this.commands.getOrThrow(commandId);
       const message = error instanceof Error ? error.message : 'Unknown command failure';
+      const fleetId = current.payload.fleetId;
+      if (typeof fleetId === 'string') {
+        this.cache?.delete(fleetCacheKey(fleetId));
+      }
       this.commands.update(commandId, current.version, (existing) => ({
         ...existing,
         status: 'Failed',
         errorMessage: message,
         updatedAt: nowIso(),
       }));
+      this.cache?.delete(commandCacheKey(commandId));
     }
   }
 
@@ -99,5 +108,6 @@ export class InMemoryCommandQueue {
       status,
       updatedAt: nowIso(),
     }));
+    this.cache?.delete(commandCacheKey(commandId));
   }
 }

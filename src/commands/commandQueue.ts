@@ -16,6 +16,12 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+export interface QueueStats {
+  pendingCount: number;
+  processing: boolean;
+  workerCount: number;
+}
+
 export class InMemoryCommandQueue {
   private readonly queue: string[] = [];
   private processing = false;
@@ -45,6 +51,14 @@ export class InMemoryCommandQueue {
 
   getCommand(id: string): Command | undefined {
     return this.commands.get(id);
+  }
+
+  getStats(): QueueStats {
+    return {
+      pendingCount: this.queue.length,
+      processing: this.processing,
+      workerCount: 1,
+    };
   }
 
   private kickWorker(): void {

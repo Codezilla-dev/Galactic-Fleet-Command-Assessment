@@ -16,6 +16,7 @@ import {
   type WebhookNotifier,
 } from './notifications/webhookNotifier';
 import { createPersistenceContext, type PersistenceContext } from './persistence/context';
+import { STORAGE_MODE } from './persistence/storageMode';
 
 interface CreateAppOptions {
   cache?: CacheClient;
@@ -46,6 +47,20 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
+  });
+
+  app.get('/system/status', (_req, res) => {
+    res.status(200).json({
+      status: 'ok',
+      architecture: {
+        cache: cache.mode,
+        gateway: 'express-middleware-stub',
+        queue: 'in-memory-single-worker',
+        storage: STORAGE_MODE,
+        webhook: webhookNotifier.mode,
+      },
+      queue: commandQueue.getStats(),
+    });
   });
 
   app.post('/fleets', (req: Request, res: Response) => {

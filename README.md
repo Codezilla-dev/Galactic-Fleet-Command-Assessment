@@ -206,6 +206,14 @@ Please include your source code and a short README describing:
 - Test: `npm test`
 - Lint: `npm run lint`
 
+### Docker
+
+- Validate tests in Docker: `docker build --target test -t fleet-command:test .`
+- Build production image: `docker build -t fleet-command:latest .`
+- Run production container: `docker run --rm -p 3000:3000 -e PORT=3000 fleet-command:latest`
+
+For CI, run the `test` target first and only build or publish the production image after test validation passes.
+
 ### Tradeoffs
 
 - Uses in-memory queue and storage for simplicity and assignment scope; data is lost on restart.

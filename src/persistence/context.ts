@@ -1,10 +1,12 @@
-import type { CommandRepository } from './commandRepository';
-import type { FleetRepository } from './fleetRepository';
-import type { ResourcePoolRepository } from './resourcePoolRepository';
-
-import { createInMemoryCommandRepository } from './commandRepository';
-import { createInMemoryFleetRepository } from './fleetRepository';
-import { createInMemoryResourcePoolRepository } from './resourcePoolRepository';
+import {
+  createInMemoryCommandRepository,
+  type CommandRepository,
+} from './commandRepository';
+import { createInMemoryFleetRepository, type FleetRepository } from './fleetRepository';
+import {
+  createInMemoryResourcePoolRepository,
+  type ResourcePoolRepository,
+} from './resourcePoolRepository';
 
 /**
  * Holds all in-memory repositories. Use createPersistenceContext() for a fresh set.

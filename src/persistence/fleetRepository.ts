@@ -1,7 +1,5 @@
-import { VersionedEntity } from './types';
-
-import { InMemoryRepository } from './InMemoryRepository';
-import type { Repository } from './InMemoryRepository';
+import { InMemoryRepository, type Repository } from './InMemoryRepository';
+import type { VersionedEntity } from './types';
 
 /**
  * Fleet lifecycle states (see assignment domain model).
@@ -12,10 +10,14 @@ export type FleetState =
   | 'Preparing'
   | 'Ready'
   | 'Deployed'
-  | 'InBattle'
-  | 'Victorious'
-  | 'Destroyed'
   | 'FailedPreparation';
+
+export interface FleetTransitionHistoryEntry {
+  from: FleetState | null;
+  to: FleetState;
+  at: string;
+  reason: string;
+}
 
 /**
  * Minimal fleet entity for persistence.
@@ -23,7 +25,10 @@ export type FleetState =
  */
 export interface Fleet extends VersionedEntity {
   name: string;
+  shipCount: number;
+  fuelRequired: number;
   state: FleetState;
+  history: FleetTransitionHistoryEntry[];
 }
 
 export type FleetRepository = Repository<Fleet>;

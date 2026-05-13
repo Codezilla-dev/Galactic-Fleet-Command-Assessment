@@ -17,7 +17,10 @@ describe('createPersistenceContext', () => {
       id: 'f1',
       version: 1,
       name: 'Alpha',
+      shipCount: 1,
+      fuelRequired: 10,
       state: 'Docked',
+      history: [],
     });
     expect(ctx1.fleets.get('f1')).toBeDefined();
     expect(ctx2.fleets.get('f1')).toBeUndefined();
@@ -29,24 +32,35 @@ describe('createPersistenceContext', () => {
       id: 'f1',
       version: 1,
       name: 'Alpha',
+      shipCount: 1,
+      fuelRequired: 10,
       state: 'Docked',
+      history: [],
     });
     ctx.commands.create({
       id: 'c1',
       version: 1,
-      type: 'PrepareFleet',
+      type: 'PrepareFleetCommand',
       status: 'Queued',
       payload: { fleetId: 'f1' },
     });
     expect(ctx.fleets.getOrThrow('f1').name).toBe('Alpha');
-    expect(ctx.commands.getOrThrow('c1').type).toBe('PrepareFleet');
+    expect(ctx.commands.getOrThrow('c1').type).toBe('PrepareFleetCommand');
   });
 });
 
 describe('in-memory repository factories', () => {
   it('createInMemoryFleetRepository returns a repository that clears independently', () => {
     const repo = createInMemoryFleetRepository();
-    repo.create({ id: 'f1', version: 1, name: 'F1', state: 'Docked' });
+    repo.create({
+      id: 'f1',
+      version: 1,
+      name: 'F1',
+      shipCount: 1,
+      fuelRequired: 10,
+      state: 'Docked',
+      history: [],
+    });
     repo.clear();
     expect(repo.get('f1')).toBeUndefined();
   });
@@ -56,11 +70,11 @@ describe('in-memory repository factories', () => {
     repo.create({
       id: 'c1',
       version: 1,
-      type: 'DeployFleet',
+      type: 'DeployFleetCommand',
       status: 'Queued',
       payload: {},
     });
-    expect(repo.getOrThrow('c1').type).toBe('DeployFleet');
+    expect(repo.getOrThrow('c1').type).toBe('DeployFleetCommand');
   });
 
   it('createInMemoryResourcePoolRepository supports create, get, getByType', () => {

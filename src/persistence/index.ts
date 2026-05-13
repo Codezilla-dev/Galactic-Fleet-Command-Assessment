@@ -12,6 +12,7 @@ export {
   type Fleet,
   type FleetRepository,
   type FleetState,
+  type FleetTransitionHistoryEntry,
 } from './fleetRepository';
 
 export {
@@ -19,6 +20,9 @@ export {
   type Command,
   type CommandRepository,
   type CommandStatus,
+  type CommandType,
+  type DeployFleetCommandPayload,
+  type PrepareFleetCommandPayload,
 } from './commandRepository';
 
 export {
